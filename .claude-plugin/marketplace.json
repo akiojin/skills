@@ -1,0 +1,16 @@
+{
+  "name": "akiojin-skills",
+  "owner": {
+    "name": "akiojin"
+  },
+  "plugins": [
+    {
+      "name": "unity-development",
+      "source": "./unity-development",
+      "description": "Unity C# development skill with unity-mcp-server, VContainer DI, UniTask, and Fail-Fast patterns",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["unity", "csharp", "gamedev", "vcontainer", "unitask"]
+    }
+  ]
+}

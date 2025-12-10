@@ -1,0 +1,11 @@
+{
+  "name": "unity-development",
+  "version": "0.1.0",
+  "description": "Unity C# development skill with unity-mcp-server tools, VContainer DI, UniTask async, and Fail-Fast patterns",
+  "author": {
+    "name": "akiojin"
+  },
+  "repository": "https://github.com/akiojin/skills",
+  "license": "MIT",
+  "keywords": ["unity", "csharp", "gamedev", "vcontainer", "unitask", "mcp"]
+}
