@@ -5,6 +5,14 @@
   },
   "plugins": [
     {
+      "name": "cli-design",
+      "source": "./cli-design",
+      "description": "Ink.js CLI UI design skill with patterns for terminal apps, emoji width handling, and React component optimization",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["cli", "inkjs", "terminal", "react", "tui"]
+    },
+    {
       "name": "unity-development",
       "source": "./unity-development",
       "description": "Unity C# development skill with unity-mcp-server, VContainer DI, UniTask, and Fail-Fast patterns",
