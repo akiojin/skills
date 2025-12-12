@@ -1,0 +1,11 @@
+{
+  "name": "cli-design",
+  "version": "0.1.0",
+  "description": "Ink.js CLI UI design skill with patterns for terminal apps, emoji width handling, and React component optimization",
+  "author": {
+    "name": "akiojin"
+  },
+  "repository": "https://github.com/akiojin/skills",
+  "license": "MIT",
+  "keywords": ["cli", "inkjs", "terminal", "react", "tui"]
+}
