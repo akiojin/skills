@@ -19,6 +19,14 @@
       "version": "0.1.0",
       "category": "development",
       "keywords": ["unity", "csharp", "gamedev", "vcontainer", "unitask"]
+    },
+    {
+      "name": "requirements-spec-kit",
+      "source": "./requirements-spec-kit",
+      "description": "Spec Kit workflow for requirements definition and specification authoring (spec.md → plan.md → tasks.md)",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["requirements", "specification", "spec", "spec-kit", "tdd", "planning"]
     }
   ]
 }

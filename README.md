@@ -23,6 +23,14 @@ Unity C# development skill with:
 - **UniTask**: Async processing patterns
 - **Fail-Fast principle**: No null-check defensive coding
 
+### requirements-spec-kit
+
+Spec Kit workflow skill with:
+
+- **Requirements definition**: New or updated requirement specs
+- **Specification authoring**: spec.md → plan.md → tasks.md flow
+- **TDD alignment**: Test-first requirements capture
+
 ## Installation
 
 ### Add Marketplace
@@ -43,12 +51,18 @@ Or:
 /plugin install unity-development@akiojin-skills
 ```
 
+Or:
+
+```bash
+/plugin install requirements-spec-kit@akiojin-skills
+```
+
 Or interactively:
 
 ```bash
 /plugin
 # Select "Browse Plugins"
-# Choose cli-design or unity-development
+# Choose cli-design, unity-development, or requirements-spec-kit
 ```
 
 ## Usage
@@ -72,6 +86,14 @@ Automatically triggered when:
 - Running Unity tests (EditMode/PlayMode)
 - Configuring VContainer DI
 - Implementing UniTask async methods
+
+### requirements-spec-kit
+
+Automatically triggered when:
+
+- Creating or updating requirements specs
+- Drafting specifications (specification/spec doc authoring)
+- Running Spec Kit workflows (specify/clarify/plan/tasks)
 
 ## License
 

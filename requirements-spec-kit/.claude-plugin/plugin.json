@@ -1,0 +1,11 @@
+{
+  "name": "requirements-spec-kit",
+  "version": "0.1.0",
+  "description": "Spec Kit workflow for requirements definition and specification authoring (spec.md → plan.md → tasks.md)",
+  "author": {
+    "name": "akiojin"
+  },
+  "repository": "https://github.com/akiojin/skills",
+  "license": "MIT",
+  "keywords": ["requirements", "specification", "spec", "spec-kit", "tdd", "planning"]
+}
