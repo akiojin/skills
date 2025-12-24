@@ -27,6 +27,14 @@
       "version": "0.1.0",
       "category": "development",
       "keywords": ["requirements", "specification", "spec", "spec-kit", "tdd", "planning"]
+    },
+    {
+      "name": "gh-fix-ci",
+      "source": "./gh-fix-ci",
+      "description": "Comprehensive PR inspection and fix skill for CI failures, merge conflicts, change requests, and unresolved review threads",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["github", "pr", "ci", "review", "conflict", "actions"]
     }
   ]
 }
