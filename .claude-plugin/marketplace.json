@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "cli-design",
-      "source": "./cli-design",
+      "source": "./skills/cli-design",
       "description": "Ink.js CLI UI design skill with patterns for terminal apps, emoji width handling, and React component optimization",
       "version": "0.1.0",
       "category": "development",
@@ -14,7 +14,7 @@
     },
     {
       "name": "unity-development",
-      "source": "./unity-development",
+      "source": "./skills/unity-development",
       "description": "Unity C# development skill with unity-mcp-server, VContainer DI, UniTask, and Fail-Fast patterns",
       "version": "0.1.0",
       "category": "development",
@@ -22,7 +22,7 @@
     },
     {
       "name": "requirements-spec-kit",
-      "source": "./requirements-spec-kit",
+      "source": "./skills/requirements-spec-kit",
       "description": "Spec Kit workflow for requirements definition and specification authoring (spec.md → plan.md → tasks.md)",
       "version": "0.1.0",
       "category": "development",
@@ -30,7 +30,7 @@
     },
     {
       "name": "gh-fix-ci",
-      "source": "./gh-fix-ci",
+      "source": "./skills/gh-fix-ci",
       "description": "Comprehensive PR inspection and fix skill for CI failures, merge conflicts, change requests, and unresolved review threads",
       "version": "0.1.0",
       "category": "development",
@@ -38,7 +38,7 @@
     },
     {
       "name": "drawio",
-      "source": "./drawio",
+      "source": "./skills/drawio",
       "description": "Draw.io diagram creation and editing skill. Handles XML structure, styling, fonts, arrows, connectors, and PNG export.",
       "version": "0.1.0",
       "category": "development",
