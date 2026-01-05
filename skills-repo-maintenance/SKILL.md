@@ -11,6 +11,12 @@ Maintain a skills repository and keep Codex and Claude Code artifacts in sync.
 
 ## Workflow
 
+### 0) Defaults to apply
+
+- Target runtime: **Codex + Claude Code** (both).
+- Package output: **`<repo-root>/codex-skills/dist/`**.
+- If the user specifies a different output directory, use their path instead.
+
 ### 1) Identify the repo root
 
 - Use the current repo (git root) as the base.
@@ -18,9 +24,10 @@ Maintain a skills repository and keep Codex and Claude Code artifacts in sync.
 
 ### 2) Decide the target runtime(s)
 
-- **Codex only**: add a skill folder with `SKILL.md` at repo root.
-- **Claude Code only**: add a plugin folder with `.claude-plugin/plugin.json` and update `.claude-plugin/marketplace.json`.
-- **Both**: do both and package `.skill` files for Codex distribution.
+- Default is **both**. If the user explicitly asks for only one runtime, confirm before skipping the other.
+- **Codex**: add a skill folder with `SKILL.md` at repo root.
+- **Claude Code**: add a plugin folder with `.claude-plugin/plugin.json` and update `.claude-plugin/marketplace.json`.
+  - For both, do both and package `.skill` files for Codex distribution.
 
 ### 3) Create or update the skill content
 
@@ -46,17 +53,19 @@ Maintain a skills repository and keep Codex and Claude Code artifacts in sync.
 $env:PYTHONUTF8=1
 $codexHome = $env:CODEX_HOME
 if (-not $codexHome) { $codexHome = "$env:USERPROFILE\.codex" }
+$outDir = "<repo-root>\\codex-skills\\dist"
 python "$codexHome\skills\.system\skill-creator\scripts\package_skill.py" `
-  "<repo-root>\<skill-folder>" `
-  "<repo-root>\codex-skills\dist"
+  "<repo-root>\\<skill-folder>" `
+  $outDir
 ```
 
 ```bash
 export PYTHONUTF8=1
 codex_home="${CODEX_HOME:-$HOME/.codex}"
+out_dir="<repo-root>/codex-skills/dist"
 python "$codex_home/skills/.system/skill-creator/scripts/package_skill.py" \
   "<repo-root>/<skill-folder>" \
-  "<repo-root>/codex-skills/dist"
+  "$out_dir"
 ```
 
 Repeat for each Codex-supported skill.
