@@ -119,6 +119,28 @@ unzip -o ./codex-skills/dist/gh-pr-create.skill -d "$dest"
 
 After installation, restart Codex to load new skills.
 
+## Usage (Codex)
+
+### gh-pr-create
+
+Use when creating or updating GitHub PRs with the gh CLI, or when you want a PR body generated from a template.
+
+### gh-fix-ci
+
+Use when debugging failing GitHub Actions checks for a PR and you want a fix plan + code changes.
+
+### requirements-spec-kit
+
+Use when creating or updating requirement specs with Spec Kit (specify/clarify/plan/tasks flow).
+
+### drawio
+
+Use when creating or editing .drawio files (XML) and exporting diagrams.
+
+### inkjs-design
+
+Use when designing Ink.js CLI UIs (layout, input handling, string-width/emoji alignment, tests).
+
 ## Usage (Claude Code)
 
 ### cli-design
