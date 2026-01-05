@@ -1,6 +1,6 @@
 # Claude Code Skills
 
-A collection of Claude Code plugins and skills for software development.
+A collection of Claude Code plugins and Codex skills for software development.
 
 ## Available Plugins
 
@@ -41,7 +41,7 @@ Draw.io diagram creation and editing skill with:
 - **Export options**: PNG, SVG, PDF via drawio-export CLI
 - **Style guide**: Color palette, layout rules, and best practices
 
-## Installation
+## Installation (Claude Code)
 
 ### Add Marketplace
 
@@ -81,7 +81,38 @@ Or interactively:
 # Choose cli-design, unity-development, requirements-spec-kit, or drawio
 ```
 
-## Usage
+## Installation (Codex)
+
+Codex reads skills from folders under `.codex/skills` (repo or user scope).
+This repo also ships packaged `.skill` files under `codex-skills/dist/`.
+
+### Option A: Install from GitHub with skill-installer
+
+```bash
+# From GitHub repo/path
+scripts/install-skill-from-github.py --repo akiojin/skills --path gh-pr-create --ref main
+```
+
+### Option B: Unzip .skill into $CODEX_HOME/skills
+
+```bash
+# Example (PowerShell)
+$dest = "$env:USERPROFILE\.codex\skills"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Expand-Archive -Path .\codex-skills\dist\gh-pr-create.skill -DestinationPath $dest -Force
+```
+
+### Available Codex skills
+
+- gh-pr-create
+- gh-fix-ci
+- requirements-spec-kit
+- drawio
+- inkjs-design
+
+After installation, restart Codex to load new skills.
+
+## Usage (Claude Code)
 
 ### cli-design
 
