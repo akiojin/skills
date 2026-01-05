@@ -14,8 +14,7 @@ Maintain a skills repository and keep Codex and Claude Code artifacts in sync.
 ### 0) Defaults to apply
 
 - Target runtime: **Codex + Claude Code** (both).
-- Package output: **`<repo-root>/codex-skills/dist/`**.
-- If the user specifies a different output directory, use their path instead.
+- Package output: **must be specified by the user every time** (no default).
 
 ### 1) Identify the repo root
 
@@ -46,14 +45,14 @@ Maintain a skills repository and keep Codex and Claude Code artifacts in sync.
 
 ### 5) Codex packaging (if applicable)
 
-- Package to `<repo-root>/codex-skills/dist/` using the skill packager.
+- Package to the **user-specified output directory** using the skill packager.
 - On Windows, set UTF-8 to avoid decode errors.
 
 ```powershell
 $env:PYTHONUTF8=1
 $codexHome = $env:CODEX_HOME
 if (-not $codexHome) { $codexHome = "$env:USERPROFILE\.codex" }
-$outDir = "<repo-root>\\codex-skills\\dist"
+$outDir = "<output-dir>"
 python "$codexHome\skills\.system\skill-creator\scripts\package_skill.py" `
   "<repo-root>\\<skill-folder>" `
   $outDir
@@ -62,7 +61,7 @@ python "$codexHome\skills\.system\skill-creator\scripts\package_skill.py" `
 ```bash
 export PYTHONUTF8=1
 codex_home="${CODEX_HOME:-$HOME/.codex}"
-out_dir="<repo-root>/codex-skills/dist"
+out_dir="<output-dir>"
 python "$codex_home/skills/.system/skill-creator/scripts/package_skill.py" \
   "<repo-root>/<skill-folder>" \
   "$out_dir"
