@@ -102,6 +102,13 @@ New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Expand-Archive -Path .\codex-skills\dist\gh-pr-create.skill -DestinationPath $dest -Force
 ```
 
+```bash
+# Example (bash)
+dest="$HOME/.codex/skills"
+mkdir -p "$dest"
+unzip -o ./codex-skills/dist/gh-pr-create.skill -d "$dest"
+```
+
 ### Available Codex skills
 
 - gh-pr-create
