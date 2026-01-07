@@ -1,8 +1,0 @@
-{
-  "name": "cli-design",
-  "description": "CLI UI design toolkit for terminal applications. Currently includes Ink.js (React for CLI) patterns with multi-screen navigation, animations, state management, and performance optimization.",
-  "version": "1.0.0",
-  "author": {
-    "name": "akiojin"
-  }
-}
