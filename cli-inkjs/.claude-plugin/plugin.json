@@ -1,0 +1,8 @@
+{
+  "name": "cli-inkjs",
+  "description": "Ink.js (React for CLI) design and implementation toolkit. Covers component patterns, input handling, screen navigation, key propagation prevention, performance optimization, and common gotchas.",
+  "version": "1.0.0",
+  "author": {
+    "name": "akiojin"
+  }
+}
