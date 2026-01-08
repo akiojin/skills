@@ -24,20 +24,12 @@
       "keywords": ["requirements", "specification", "spec", "spec-kit", "tdd", "planning"]
     },
     {
-      "name": "gh-fix-ci",
-      "source": "./gh-fix-ci",
-      "description": "Comprehensive PR inspection and fix skill for CI failures, merge conflicts, change requests, and unresolved review threads",
+      "name": "github",
+      "source": "./github",
+      "description": "GitHub workflow skills: PR creation/update (gh-pr) and CI failure inspection/fix (gh-fix-ci)",
       "version": "0.1.0",
       "category": "development",
-      "keywords": ["github", "pr", "ci", "review", "conflict", "actions"]
-    },
-    {
-      "name": "gh-pr",
-      "source": "./gh-pr",
-      "description": "GitHub PR creation/update skill with same-branch rules, PR existence checks, and detailed PR body templating",
-      "version": "0.1.0",
-      "category": "development",
-      "keywords": ["github", "pr", "pull-request", "gh", "template"]
+      "keywords": ["github", "pr", "pull-request", "ci", "review", "actions"]
     },
     {
       "name": "drawio",
