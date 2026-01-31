@@ -18,7 +18,7 @@ Use gh to inspect PRs for:
 - Change Requests from reviewers
 - Unresolved review threads
 
-Then propose a fix plan, implement after explicit approval, and optionally resolve threads and notify reviewers.
+Then propose a fix plan, implement after explicit approval, resolve threads for addressed reviewer comments (required for merge in many repositories), and notify reviewers.
 
 - Depends on the `plan` skill for drafting and approving the fix plan.
 
@@ -107,10 +107,13 @@ python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>"
 
 6. **Implement after approval.**
    - Apply the approved plan, summarize diffs/tests.
+   - **After implementing fixes for reviewer comments, proceed to step 7 to resolve the corresponding threads.**
 
-7. **Resolve review threads (optional).**
-   - With `--resolve-threads`, resolve all unresolved threads via GraphQL mutation.
+7. **Resolve review threads (required after addressing reviewer comments).**
+   - **IMPORTANT:** When fixes are made in response to reviewer comments, you MUST resolve the corresponding review threads. Some repositories require all conversations to be resolved before merging.
+   - Use `--resolve-threads` to resolve all unresolved threads via GraphQL mutation.
    - Requires `Repository Permissions > Contents: Read and Write`.
+   - After implementing fixes for reviewer feedback, always resolve the threads to indicate the feedback has been addressed.
 
 8. **Notify reviewers (optional).**
    - With `--add-comment "message"`, post a comment to the PR.
