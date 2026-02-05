@@ -11,10 +11,12 @@ Modes:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -959,19 +961,19 @@ def fetch_check_log(
     job_id: str | None,
     repo_root: Path,
 ) -> tuple[str, str, str]:
+    if job_id:
+        job_log, job_error, job_status = fetch_job_log(job_id, repo_root)
+        if job_log:
+            return job_log, "", "ok"
+        if job_status == "pending":
+            return "", job_error, "pending"
+        if job_error:
+            # fall back to run log below
+            pass
+
     log_text, log_error = fetch_run_log(run_id, repo_root)
     if not log_error:
         return log_text, "", "ok"
-
-    if is_log_pending_message(log_error) and job_id:
-        job_log, job_error = fetch_job_log(job_id, repo_root)
-        if job_log:
-            return job_log, "", "ok"
-        if job_error and is_log_pending_message(job_error):
-            return "", job_error, "pending"
-        if job_error:
-            return "", job_error, "error"
-        return "", log_error, "pending"
 
     if is_log_pending_message(log_error):
         return "", log_error, "pending"
@@ -987,18 +989,23 @@ def fetch_run_log(run_id: str, repo_root: Path) -> tuple[str, str]:
     return result.stdout, ""
 
 
-def fetch_job_log(job_id: str, repo_root: Path) -> tuple[str, str]:
+def fetch_job_log(job_id: str, repo_root: Path) -> tuple[str, str, str]:
     repo_slug = fetch_repo_slug(repo_root)
     if not repo_slug:
-        return "", "Error: unable to resolve repository name for job logs."
+        return "", "Error: unable to resolve repository name for job logs.", "error"
     endpoint = f"/repos/{repo_slug}/actions/jobs/{job_id}/logs"
     returncode, stdout_bytes, stderr = run_gh_command_raw(["api", endpoint], cwd=repo_root)
     if returncode != 0:
         message = (stderr or stdout_bytes.decode(errors="replace")).strip()
-        return "", message or "gh api job logs failed"
+        if is_log_pending_message(message):
+            return "", message or "Job logs are still in progress.", "pending"
+        return "", message or "gh api job logs failed", "error"
     if is_zip_payload(stdout_bytes):
-        return "", "Job logs returned a zip archive; unable to parse."
-    return stdout_bytes.decode(errors="replace"), ""
+        decoded = decode_job_log_zip(stdout_bytes)
+        if decoded:
+            return decoded, "", "ok"
+        return "", "Job logs returned a zip archive; unable to parse.", "error"
+    return stdout_bytes.decode(errors="replace"), "", "ok"
 
 
 def normalize_field(value: Any) -> str:
@@ -1049,6 +1056,24 @@ def is_log_pending_message(message: str) -> bool:
 
 def is_zip_payload(payload: bytes) -> bool:
     return payload.startswith(b"PK")
+
+
+def decode_job_log_zip(payload: bytes) -> str:
+    if not payload:
+        return ""
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            parts = []
+            for name in archive.namelist():
+                if not name.endswith(".txt"):
+                    continue
+                try:
+                    parts.append(archive.read(name).decode(errors="replace"))
+                except Exception:
+                    continue
+            return "\n".join(part for part in parts if part)
+    except Exception:
+        return ""
 
 
 def extract_failure_snippet(log_text: str, max_lines: int, context: int) -> str:
