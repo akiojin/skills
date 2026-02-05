@@ -229,6 +229,8 @@ def main() -> int:
     if args.mode in ("checks", "all"):
         checks, checks_note = fetch_checks(pr_value, repo_root, required_only=args.required_only)
         if checks is not None:
+            checks_summary = build_checks_summary(checks)
+            results["checksSummary"] = checks_summary
             failing = [c for c in checks if is_failing(c)]
             if failing:
                 has_issues = True
@@ -248,6 +250,7 @@ def main() -> int:
         else:
             results["ciFailures"] = None
             results["ciError"] = "Failed to fetch CI checks"
+            results["checksSummary"] = None
         if checks_note:
             results["checksNote"] = checks_note
         if args.required_only:
@@ -831,6 +834,31 @@ def is_failing(check: dict[str, Any]) -> bool:
     return bucket in FAILURE_BUCKETS
 
 
+def build_checks_summary(checks: list[dict[str, Any]]) -> dict[str, Any]:
+    failing_checks = []
+    for check in checks:
+        name = check.get("name") or ""
+        state = normalize_field(check.get("state") or check.get("status"))
+        bucket = normalize_field(check.get("bucket"))
+        workflow = check.get("workflow") or ""
+        link = check.get("detailsUrl") or check.get("link") or ""
+        if is_failing(check):
+            failing_checks.append(
+                {
+                    "name": name,
+                    "state": state,
+                    "bucket": bucket,
+                    "workflow": workflow,
+                    "detailsUrl": link,
+                }
+            )
+    return {
+        "totalCount": len(checks),
+        "failingCount": len(failing_checks),
+        "failingChecks": failing_checks,
+    }
+
+
 def analyze_check(
     check: dict[str, Any],
     repo_root: Path,
@@ -1203,6 +1231,28 @@ def render_comprehensive_results(results: dict[str, Any]) -> None:
     review_action_required = results.get("reviewActionRequired")
     if review_action_required is not None:
         print(f"\nREVIEW ACTION REQUIRED: {'YES' if review_action_required else 'NO'}")
+
+    checks_summary = results.get("checksSummary")
+    if checks_summary is not None:
+        print("\nCI CHECKS SUMMARY")
+        print("-" * 60)
+        total = checks_summary.get("totalCount", 0)
+        failing = checks_summary.get("failingCount", 0)
+        print(f"Checks: {failing} failing / {total} total")
+        if failing:
+            for check in checks_summary.get("failingChecks", []):
+                name = check.get("name", "")
+                workflow = check.get("workflow", "")
+                state = check.get("state", "")
+                bucket = check.get("bucket", "")
+                details = check.get("detailsUrl", "")
+                bits = [b for b in [workflow and f"workflow={workflow}", state and f"state={state}", bucket and f"bucket={bucket}"] if b]
+                suffix = f" ({', '.join(bits)})" if bits else ""
+                print(f"  - {name}{suffix}")
+                if details:
+                    print(f"    Details: {details}")
+        else:
+            print("No failing checks detected.")
 
     # Resolved threads count
     resolved_count = results.get("resolvedThreadsCount")
