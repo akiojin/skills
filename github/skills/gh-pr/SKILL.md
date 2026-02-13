@@ -67,8 +67,11 @@ When all PRs for the head branch are merged, you **must** check whether there ar
    - Optional: labels, reviewers, assignees, draft
 
 7. **Build PR body from template**
-   - Read `references/pr-body-template.md` and fill placeholders.
-   - If info is missing, keep TODO markers and explicitly mention them in the response.
+  - Read the template from the gh-pr skill path (not the current project path):
+    - `GH_PR_SKILL_DIR="${GH_PR_SKILL_DIR:-$HOME/.codex/skills/gh-pr"}`
+    - `PR_BODY_TEMPLATE="${GH_PR_SKILL_DIR}/references/pr-body-template.md"`
+  - Read `${PR_BODY_TEMPLATE}` and fill placeholders.
+  - If info is missing, keep TODO markers and explicitly mention them in the response.
 
 8. **Create or update the PR**
    - Create: `gh pr create -B <base> -H <head> --title "<title>" --body-file <file>`
@@ -82,6 +85,13 @@ When all PRs for the head branch are merged, you **must** check whether there ar
 ```bash
 head=$(git rev-parse --abbrev-ref HEAD)
 base=develop
+GH_PR_SKILL_DIR="${GH_PR_SKILL_DIR:-$HOME/.codex/skills/gh-pr}"
+PR_BODY_TEMPLATE="${GH_PR_SKILL_DIR}/references/pr-body-template.md"
+
+if [ ! -f "$PR_BODY_TEMPLATE" ]; then
+  echo "PR template not found: $PR_BODY_TEMPLATE" >&2
+  exit 1
+fi
 
 # Fetch latest remote state
 git fetch origin
@@ -124,47 +134,7 @@ fi
 # Execute action
 case "$action" in
   create)
-    # Create PR body from template (edit as needed)
-    cat > /tmp/pr-body.md <<'BODY'
-## Summary
-- TODO (one-sentence outcome)
-- TODO (user-visible change, if any)
-
-## Context
-- TODO (why this PR is needed)
-- TODO (background, ticket, or incident link)
-
-## Changes
-- TODO (key changes, bullets)
-- TODO (notable refactors or cleanup)
-
-## Testing
-- TODO (commands run)
-- TODO (manual steps, if any)
-
-## Risk / Impact
-- TODO (areas impacted)
-- TODO (rollback plan / mitigation)
-
-## Deployment
-- TODO (steps, flags, or "none")
-
-## Screenshots
-- TODO (UI changes only)
-
-## Related Issues / Links
-- TODO (issues, specs, docs)
-
-## Checklist
-- [ ] Tests added/updated
-- [ ] Lint/format checked
-- [ ] Docs updated
-- [ ] Migration/backfill plan included (if needed)
-- [ ] Monitoring/alerts updated (if needed)
-
-## Notes
-- TODO (optional)
-BODY
+    cp "$PR_BODY_TEMPLATE" /tmp/pr-body.md
 
     git push -u origin "$head"
     gh pr create -B "$base" -H "$head" --title "..." --body-file /tmp/pr-body.md
@@ -182,4 +152,4 @@ esac
 
 ## References
 
-- `references/pr-body-template.md`: PR body template
+- `${GH_PR_SKILL_DIR}/references/pr-body-template.md`: PR body template
