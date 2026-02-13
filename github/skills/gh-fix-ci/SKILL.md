@@ -37,31 +37,31 @@ Prereq: ensure `gh` is authenticated (for example, run `gh auth login` once), th
 
 ```bash
 # Inspect all (CI, conflicts, reviews) - default mode
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>"
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>"
 
 # CI checks only
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks
 
 # Conflicts only
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode conflicts
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode conflicts
 
 # Reviews only (Change Requests + Unresolved Threads)
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode reviews
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode reviews
 
 # JSON output
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --json
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --json
 
 # Required checks only (if gh supports --required)
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks --required-only
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks --required-only
 
 # Limit review comment output
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --max-review-comments 30
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --max-review-comments 30
 
 # Resolve all unresolved threads after fixing
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --resolve-threads
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --resolve-threads
 
 # Add a comment to notify reviewers
-python "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --add-comment "Fixed all issues. Please re-review."
+python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --add-comment "Fixed all issues. Please re-review."
 ```
 
 ## Workflow
