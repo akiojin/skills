@@ -38,6 +38,41 @@ When all PRs for the head branch are merged, you **must** check whether there ar
 - **Scenario B**: PR merged → user says "create PR" without new changes → would create empty/duplicate PR
   - This check prevents unnecessary PR creation
 
+## PR title rules (must follow)
+
+1. **Format**: `<type>(<scope>): <subject>` — Conventional Commits 形式に準拠する。
+2. **type**: `feat` / `fix` / `docs` / `chore` / `refactor` / `test` / `ci` / `perf` のいずれか。
+3. **scope**: 省略可。変更の影響範囲を端的に示す（例: `gui`, `core`, `pty`）。
+4. **subject**: 70文字以内。命令形（imperative mood）で書く（例: "add …" / "fix …"）。先頭大文字禁止、末尾ピリオド禁止。
+5. ブランチ名にプレフィックス（`feat/`, `fix/` など）がある場合、**タイトルの type と一致させる**。
+
+## PR body rules (must follow)
+
+### Section classification
+
+| Section | Required | Notes |
+|---------|----------|-------|
+| Summary | **YES** | 1-3 bullet points。"what" と "why" を両方含める |
+| Changes | **YES** | ファイル/モジュール単位で変更内容を列挙 |
+| Testing | **YES** | 実行したコマンドまたは手動テスト手順を具体的に記載 |
+| Related Issues / Links | **YES** | Issue番号、spec、または "None" を明記 |
+| Checklist | **YES** | 全項目を確認してチェック/N-A を付ける |
+| Context | Conditional | 3ファイル以上の変更、または非自明な変更理由がある場合は必須 |
+| Risk / Impact | Conditional | 破壊的変更・パフォーマンス影響・ロールバック手順がある場合は必須 |
+| Screenshots | Conditional | UI 変更がある場合のみ必須 |
+| Deployment | Optional | デプロイ手順がある場合のみ記載 |
+| Notes | Optional | レビュアーへの補足がある場合のみ記載 |
+
+### Validation (agent must check before creating PR)
+
+1. **Required セクションに `TODO` が残っていたら PR を作成してはならない。**
+2. Conditional セクションが該当しない場合は、セクション自体を削除する（空の TODO を残さない）。
+3. Summary の各 bullet は **1文で完結** させる。曖昧な表現（"いくつかの変更", "various fixes"）を禁止する。
+4. Changes は **変更ファイルまたはモジュール名を含む** 具体的な記述にする。
+5. Testing は **再現可能な手順** を書く（"テスト済み" のような曖昧な記述を禁止）。
+6. Checklist の未チェック項目には理由コメントを付ける（例: `- [ ] Docs updated — N/A: no user-facing change`）。
+7. Related Issues は `#123` 形式または URL で記載する。該当なしの場合は "None" と明記する。
+
 ## Workflow (recommended)
 
 1. **Confirm repo + branches**
@@ -68,10 +103,12 @@ When all PRs for the head branch are merged, you **must** check whether there ar
 
 7. **Build PR body from template**
   - Read the template from the gh-pr skill path (not the current project path):
-    - `GH_PR_SKILL_DIR="${GH_PR_SKILL_DIR:-$HOME/.codex/skills/gh-pr"}`
+    - `GH_PR_SKILL_DIR="${GH_PR_SKILL_DIR:-$HOME/.codex/skills/gh-pr}"`
     - `PR_BODY_TEMPLATE="${GH_PR_SKILL_DIR}/references/pr-body-template.md"`
-  - Read `${PR_BODY_TEMPLATE}` and fill placeholders.
-  - If info is missing, keep TODO markers and explicitly mention them in the response.
+  - Read `${PR_BODY_TEMPLATE}` and fill all required placeholders.
+  - **Conditional セクションが該当しない場合はセクションごと削除する。**
+  - **テンプレート内の `<!-- GUIDE: ... -->` コメントは最終出力から削除する。**
+  - **Required セクションに TODO が残っている場合は PR を作成せず、ユーザーに不足情報を確認する。**
 
 8. **Create or update the PR**
    - Create: `gh pr create -B <base> -H <head> --title "<title>" --body-file <file>`
@@ -108,10 +145,10 @@ elif [ "$unmerged_count" -gt 0 ]; then
 else
   # All PRs are merged - check for post-merge commits
   merge_commit=$(echo "$pr_json" | jq -r 'sort_by(.mergedAt) | last | .mergeCommit.oid')
-  
+
   if [ -n "$merge_commit" ] && [ "$merge_commit" != "null" ]; then
     new_commits=$(git rev-list --count "$merge_commit"..HEAD 2>/dev/null || echo "0")
-    
+
     if [ "$new_commits" -gt 0 ]; then
       echo "Found $new_commits commit(s) after merge - creating new PR"
       action=create
@@ -122,7 +159,7 @@ else
   else
     # Fallback: check against base branch
     new_commits=$(git rev-list --count "origin/$base"..HEAD 2>/dev/null || echo "0")
-    
+
     if [ "$new_commits" -gt 0 ]; then
       action=create
     else
