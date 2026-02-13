@@ -1,3 +1,8 @@
+---
+name: opentui-design
+description: "Comprehensive toolkit for designing and implementing CLI applications with OpenTUI and SolidJS. Use when building CLI screens/components, debugging input handling, implementing screen navigation, handling mouse events, or optimizing CLI performance."
+---
+
 # OpenTUI Design Skill
 
 ## Description
