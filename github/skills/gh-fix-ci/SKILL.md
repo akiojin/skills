@@ -1,6 +1,6 @@
 ---
 name: gh-fix-ci
-description: Inspect GitHub PR for CI failures, merge conflicts, update-branch requirements, reviewer comments, change requests, and unresolved review threads. Create fix plans and implement after user approval. Resolve review threads and notify reviewers after fixes.
+description: Inspect GitHub PR for CI failures, merge conflicts, update-branch requirements, reviewer comments, change requests, and unresolved review threads. Create fix plans and implement after user approval. Reply to ALL reviewer comments with action taken or reason for not addressing, then resolve threads. Notify reviewers after fixes.
 metadata:
   short-description: Fix failing GitHub PRs comprehensively
 ---
@@ -18,18 +18,26 @@ Use gh to inspect PRs for:
 - Change Requests from reviewers
 - Unresolved review threads
 
-Then propose a fix plan, implement after explicit approval, resolve threads for addressed reviewer comments (required for merge in many repositories), and notify reviewers.
+Then propose a fix plan, implement after explicit approval, **reply to every reviewer comment** (with action taken or reason for not addressing), resolve all threads, and notify reviewers.
 
 - Depends on the `plan` skill for drafting and approving the fix plan.
 
 Prereq: ensure `gh` is authenticated (for example, run `gh auth login` once), then run `gh auth status` with escalated permissions (include workflow/repo scopes) so `gh` commands succeed.
+
+## Comment Response Policy
+
+> **No reviewer comment may be left unanswered.**
+
+- Every unresolved review thread MUST receive a reply before being resolved.
+- If the feedback was addressed: reply with what was done (e.g., "Fixed: refactored as suggested.").
+- If the feedback was intentionally not addressed: reply with the reason (e.g., "Not addressed: this is intentional because the API contract requires this format.").
+- The `--reply-and-resolve` argument enforces this by requiring a reply entry for every unresolved thread and rejecting empty bodies.
 
 ## Inputs
 
 - `repo`: path inside the repo (default `.`)
 - `pr`: PR number or URL (optional; defaults to current branch PR)
 - `mode`: inspection mode (`checks`, `conflicts`, `reviews`, `all`)
-- `max-review-comments`: max reviewer comments to list per category
 - `required-only`: limit CI checks to required checks only (uses `gh pr checks --required`)
 - `gh` authentication for the repo host
 
@@ -37,31 +45,31 @@ Prereq: ensure `gh` is authenticated (for example, run `gh auth login` once), th
 
 ```bash
 # Inspect all (CI, conflicts, reviews) - default mode
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>"
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>"
 
 # CI checks only
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks
 
 # Conflicts only
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode conflicts
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode conflicts
 
 # Reviews only (Change Requests + Unresolved Threads)
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode reviews
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode reviews
 
 # JSON output
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --json
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --json
 
 # Required checks only (if gh supports --required)
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks --required-only
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --mode checks --required-only
 
-# Limit review comment output
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --max-review-comments 30
-
-# Resolve all unresolved threads after fixing
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --resolve-threads
+# Reply to all unresolved threads and resolve them
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --reply-and-resolve '[
+  {"threadId":"PRRT_xxx123","body":"Fixed: refactored the method as suggested."},
+  {"threadId":"PRRT_xxx456","body":"Not addressed: this is intentional because the API requires this format."}
+]'
 
 # Add a comment to notify reviewers
-python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --add-comment "Fixed all issues. Please re-review."
+python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks.py" --repo "." --pr "<number>" --add-comment "Fixed all issues. Please re-review."
 ```
 
 ## Workflow
@@ -85,8 +93,8 @@ python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>
    **Reviews Mode (`--mode reviews`):**
    - Fetch reviews with `CHANGES_REQUESTED` state.
    - Fetch unresolved review threads using GraphQL.
-   - Fetch reviewer comments (review summaries, inline review comments, issue comments).
-   - Display reviewer, comment body, file path, and line number.
+   - Fetch ALL reviewer comments (review summaries, inline review comments, issue comments) without truncation.
+   - Display reviewer, comment body (full text), file path, and line number.
    - Decide if reviewer feedback requires action (any change request, unresolved thread, or reviewer comment).
 
    **Checks Mode (`--mode checks`):**
@@ -107,13 +115,16 @@ python3 "<path-to-skill>/scripts/inspect_pr_checks.py" --repo "." --pr "<number>
 
 6. **Implement after approval.**
    - Apply the approved plan, summarize diffs/tests.
-   - **After implementing fixes for reviewer comments, proceed to step 7 to resolve the corresponding threads.**
+   - **After implementing fixes, proceed to step 7 to reply and resolve ALL threads.**
 
-7. **Resolve review threads (required after addressing reviewer comments).**
-   - **IMPORTANT:** When fixes are made in response to reviewer comments, you MUST resolve the corresponding review threads. Some repositories require all conversations to be resolved before merging.
-   - Use `--resolve-threads` to resolve all unresolved threads via GraphQL mutation.
+7. **Reply to ALL reviewer comments and resolve threads (mandatory).**
+   - **CRITICAL:** Every unresolved review thread MUST receive a reply before resolution. No thread may be silently resolved or left unaddressed.
+   - For each unresolved thread, prepare a reply:
+     - If addressed: describe what was done (e.g., "Fixed: refactored the method as suggested in commit abc1234.")
+     - If intentionally not addressed: explain the reason (e.g., "Not addressed: this is by design because ...")
+   - Use `--reply-and-resolve` with a JSON array covering ALL unresolved threads.
+   - The script validates completeness and rejects the operation if any thread is missing a reply.
    - Requires `Repository Permissions > Contents: Read and Write`.
-   - After implementing fixes for reviewer feedback, always resolve the threads to indicate the feedback has been addressed.
 
 8. **Notify reviewers (optional).**
    - With `--add-comment "message"`, post a comment to the PR.
@@ -137,10 +148,9 @@ Comprehensive PR inspection tool. Exits non-zero when issues remain.
 | `--mode` | `all` | Inspection mode: `checks`, `conflicts`, `reviews`, `all` |
 | `--max-lines` | 160 | Max lines for log snippets |
 | `--context` | 30 | Context lines around failure markers |
-| `--max-review-comments` | 50 | Max reviewer comments to list per category |
 | `--required-only` | false | Limit CI checks to required checks only |
 | `--json` | false | Emit JSON output |
-| `--resolve-threads` | false | Resolve unresolved review threads |
+| `--reply-and-resolve` | (none) | JSON array of `{threadId, body}` to reply and resolve ALL threads |
 | `--add-comment` | (none) | Add a comment to the PR |
 
 **Exit codes:**
@@ -148,7 +158,22 @@ Comprehensive PR inspection tool. Exits non-zero when issues remain.
 - `0`: No issues found
 - `1`: Issues detected or error occurred
 
-## New Features
+**`--reply-and-resolve` JSON format:**
+
+```json
+[
+  {"threadId": "PRRT_xxx123", "body": "Fixed: refactored the method as suggested."},
+  {"threadId": "PRRT_xxx456", "body": "Not addressed: this is intentional because ..."}
+]
+```
+
+**Validation rules:**
+
+- Every currently unresolved thread MUST have a corresponding entry.
+- Every entry MUST have a non-empty `body`.
+- If any unresolved thread is missing, the script prints the missing thread details and exits with error.
+
+## Features
 
 ### Conflict Detection
 
@@ -168,11 +193,11 @@ Fetches reviews with `state == "CHANGES_REQUESTED"` and displays:
 
 ### Reviewer Comments
 
-Fetches reviewer feedback beyond change requests:
+Fetches ALL reviewer feedback without truncation:
 
-- Review summaries with comment bodies
-- Inline review comments (file/line)
-- PR issue comments
+- Review summaries with full comment bodies
+- Inline review comments (file/line) with full comment bodies
+- PR issue comments with full comment bodies
 - Marks review action required if any reviewer feedback exists
 
 ### Unresolved Review Threads
@@ -180,13 +205,18 @@ Fetches reviewer feedback beyond change requests:
 Uses GraphQL to fetch threads where `isResolved == false`:
 
 - File path and line number
-- Thread ID (for resolution)
-- Comment author and body
+- Thread ID (for reply and resolution)
+- Comment author and full body
 - Outdated status
 
-### Resolve Conversation
+### Reply and Resolve
 
-Use `--resolve-threads` to mark threads as resolved via GraphQL mutation `resolveReviewThread`.
+Use `--reply-and-resolve` to reply to every unresolved thread and resolve them.
+
+- Uses GraphQL `addPullRequestReviewThreadReply` to post a reply.
+- Uses GraphQL `resolveReviewThread` to mark the thread as resolved.
+- Validates that ALL unresolved threads are covered (no thread left behind).
+- Rejects empty reply bodies.
 
 **Required permissions:**
 
@@ -221,7 +251,12 @@ UNRESOLVED REVIEW THREADS
 ------------------------------------------------------------
 [1] src/main.ts:42
     Thread ID: PRRT_xxx123
-    @reviewer1: This needs refactoring...
+    @reviewer1: This needs refactoring because the current
+    implementation violates the single responsibility principle.
+
+[2] src/utils.ts:15
+    Thread ID: PRRT_xxx456
+    @reviewer2: Consider using a more descriptive variable name here.
 
 CI FAILURES
 ------------------------------------------------------------
@@ -231,6 +266,15 @@ Failure snippet:
   Error: TypeScript compilation failed
   ...
 ============================================================
+```
+
+### Reply and Resolve Output
+
+```text
+OK: PRRT_xxx123 (src/main.ts:42)
+OK: PRRT_xxx456 (src/utils.ts:15)
+
+Result: 2 resolved, 0 failed, 2 total
 ```
 
 ### JSON Output
@@ -259,7 +303,7 @@ Failure snippet:
       "path": "src/main.ts",
       "line": 42,
       "comments": [
-        {"author": "reviewer1", "body": "This needs refactoring"}
+        {"author": "reviewer1", "body": "This needs refactoring because..."}
       ]
     }
   ],

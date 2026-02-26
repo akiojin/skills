@@ -52,8 +52,6 @@ FAILURE_MARKERS = (
 
 DEFAULT_MAX_LINES = 160
 DEFAULT_CONTEXT_LINES = 30
-DEFAULT_MAX_REVIEW_COMMENTS = 50
-DEFAULT_MAX_COMMENT_BODY_CHARS = 400
 PENDING_LOG_MARKERS = (
     "still in progress",
     "log will be available when it is complete",
@@ -108,21 +106,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-lines", type=int, default=DEFAULT_MAX_LINES)
     parser.add_argument("--context", type=int, default=DEFAULT_CONTEXT_LINES)
     parser.add_argument(
-        "--max-review-comments",
-        type=int,
-        default=DEFAULT_MAX_REVIEW_COMMENTS,
-        help="Maximum number of reviewer comments to list per category.",
-    )
-    parser.add_argument(
         "--required-only",
         action="store_true",
         help="Limit CI checks to required checks only (uses gh pr checks --required).",
     )
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text output.")
     parser.add_argument(
-        "--resolve-threads",
-        action="store_true",
-        help="Resolve review threads after confirmation.",
+        "--reply-and-resolve",
+        type=str,
+        default=None,
+        help=(
+            "Reply to ALL unresolved review threads and resolve them. "
+            'Takes a JSON array: [{"threadId":"...","body":"..."},...]  '
+            "Every unresolved thread MUST have a corresponding entry. "
+            "Exits with error if any thread is missing."
+        ),
     )
     parser.add_argument(
         "--add-comment",
@@ -140,8 +138,6 @@ def main() -> int:
         print("Error: not inside a Git repository.", file=sys.stderr)
         return 1
 
-    max_review_comments = max(1, args.max_review_comments)
-
     if not ensure_gh_available(repo_root):
         return 1
 
@@ -157,6 +153,10 @@ def main() -> int:
         else:
             print(f"Failed to add comment to PR #{pr_value}", file=sys.stderr)
         return 0 if success else 1
+
+    # Handle --reply-and-resolve action
+    if args.reply_and_resolve:
+        return handle_reply_and_resolve(pr_value, args.reply_and_resolve, repo_root)
 
     # Collect results based on mode
     results: dict[str, Any] = {"pr": pr_value}
@@ -186,9 +186,9 @@ def main() -> int:
         review_comments = fetch_review_comments(pr_value, repo_root, author_login)
         issue_comments = fetch_issue_comments(pr_value, repo_root, author_login)
 
-        results["reviewSummaries"] = review_summaries[:max_review_comments]
-        results["reviewComments"] = review_comments[:max_review_comments]
-        results["issueComments"] = issue_comments[:max_review_comments]
+        results["reviewSummaries"] = review_summaries
+        results["reviewComments"] = review_comments
+        results["issueComments"] = issue_comments
         results["reviewCounts"] = {
             "reviewSummaries": len(review_summaries),
             "reviewComments": len(review_comments),
@@ -201,31 +201,6 @@ def main() -> int:
         results["reviewActionRequired"] = review_action_required
         if review_action_required:
             has_issues = True
-
-        review_notes = []
-        if len(review_summaries) > max_review_comments:
-            review_notes.append(
-                f"Showing {max_review_comments} of {len(review_summaries)} review summaries."
-            )
-        if len(review_comments) > max_review_comments:
-            review_notes.append(
-                f"Showing {max_review_comments} of {len(review_comments)} inline review comments."
-            )
-        if len(issue_comments) > max_review_comments:
-            review_notes.append(
-                f"Showing {max_review_comments} of {len(issue_comments)} issue comments."
-            )
-        if review_notes:
-            results["reviewNote"] = " ".join(review_notes)
-
-        # Handle --resolve-threads
-        if args.resolve_threads and unresolved_threads:
-            resolved_count = 0
-            for thread in unresolved_threads:
-                thread_id = thread.get("id")
-                if thread_id and resolve_thread(thread_id, repo_root):
-                    resolved_count += 1
-            results["resolvedThreadsCount"] = resolved_count
 
     # CI checks
     if args.mode in ("checks", "all"):
@@ -265,6 +240,120 @@ def main() -> int:
         render_comprehensive_results(results)
 
     return 1 if has_issues else 0
+
+
+# =============================================================================
+# Reply and resolve handler
+# =============================================================================
+
+def handle_reply_and_resolve(
+    pr_value: str, replies_json: str, repo_root: Path
+) -> int:
+    """Reply to all unresolved threads and resolve them.
+
+    Validates that every unresolved thread has a corresponding reply entry.
+    Returns non-zero if any thread is missing or if any operation fails.
+    """
+    try:
+        replies = json.loads(replies_json)
+    except json.JSONDecodeError as e:
+        print(f"Error: invalid JSON for --reply-and-resolve: {e}", file=sys.stderr)
+        return 1
+
+    if not isinstance(replies, list):
+        print("Error: --reply-and-resolve expects a JSON array.", file=sys.stderr)
+        return 1
+
+    # Validate structure
+    for i, entry in enumerate(replies):
+        if not isinstance(entry, dict):
+            print(f"Error: entry [{i}] is not an object.", file=sys.stderr)
+            return 1
+        if "threadId" not in entry or "body" not in entry:
+            print(
+                f'Error: entry [{i}] missing required fields "threadId" and/or "body".',
+                file=sys.stderr,
+            )
+            return 1
+        if not entry["body"].strip():
+            print(
+                f'Error: entry [{i}] (thread {entry["threadId"]}) has empty body. '
+                "Every thread must have a reply explaining the action taken or reason for not addressing.",
+                file=sys.stderr,
+            )
+            return 1
+
+    # Build lookup from provided replies
+    reply_map: dict[str, str] = {}
+    for entry in replies:
+        reply_map[entry["threadId"]] = entry["body"]
+
+    # Fetch current unresolved threads
+    unresolved = fetch_unresolved_threads(pr_value, repo_root)
+    unresolved_ids = {t["id"] for t in unresolved}
+
+    # Validate completeness: every unresolved thread must have a reply
+    missing = unresolved_ids - set(reply_map.keys())
+    if missing:
+        print(
+            f"Error: {len(missing)} unresolved thread(s) have no reply entry. "
+            "ALL unresolved threads must be addressed.",
+            file=sys.stderr,
+        )
+        for thread in unresolved:
+            if thread["id"] in missing:
+                path = thread.get("path", "?")
+                line = thread.get("line", "?")
+                first_comment = ""
+                comments = thread.get("comments", [])
+                if comments:
+                    author = comments[0].get("author", "unknown")
+                    body_preview = comments[0].get("body", "")[:120]
+                    first_comment = f" @{author}: {body_preview}"
+                print(f"  Missing: {thread['id']} ({path}:{line}){first_comment}", file=sys.stderr)
+        return 1
+
+    # Warn about extra entries (threads already resolved or non-existent)
+    extra = set(reply_map.keys()) - unresolved_ids
+    if extra:
+        print(
+            f"Warning: {len(extra)} reply entry(ies) target threads that are not unresolved "
+            "(already resolved or non-existent). Skipping them.",
+            file=sys.stderr,
+        )
+
+    # Process: reply then resolve each thread
+    success_count = 0
+    fail_count = 0
+    for thread in unresolved:
+        tid = thread["id"]
+        body = reply_map.get(tid)
+        if body is None:
+            continue
+
+        path = thread.get("path", "?")
+        line = thread.get("line", "?")
+        location = f"{path}:{line}" if line else path
+
+        # Step 1: Reply
+        reply_ok = reply_to_thread(tid, body, repo_root)
+        if not reply_ok:
+            print(f"FAIL reply: {tid} ({location})", file=sys.stderr)
+            fail_count += 1
+            continue
+
+        # Step 2: Resolve
+        resolve_ok = resolve_thread(tid, repo_root)
+        if not resolve_ok:
+            print(f"FAIL resolve (reply sent): {tid} ({location})", file=sys.stderr)
+            fail_count += 1
+            continue
+
+        success_count += 1
+        print(f"OK: {tid} ({location})")
+
+    print(f"\nResult: {success_count} resolved, {fail_count} failed, {len(unresolved)} total")
+    return 1 if fail_count > 0 else 0
 
 
 # =============================================================================
@@ -515,7 +604,7 @@ def fetch_review_summaries(
                 "id": review.get("id"),
                 "reviewer": user_login or "unknown",
                 "state": state.upper(),
-                "body": compact_text(body, DEFAULT_MAX_COMMENT_BODY_CHARS),
+                "body": body,
                 "submittedAt": review.get("submitted_at", ""),
                 "htmlUrl": review.get("html_url", ""),
             }
@@ -562,7 +651,7 @@ def fetch_review_comments(
                 "reviewer": user_login or "unknown",
                 "path": comment.get("path", ""),
                 "line": comment.get("line") or comment.get("original_line") or comment.get("position"),
-                "body": compact_text(comment.get("body") or "", DEFAULT_MAX_COMMENT_BODY_CHARS),
+                "body": (comment.get("body") or "").strip(),
                 "createdAt": comment.get("created_at", ""),
                 "htmlUrl": comment.get("html_url", ""),
             }
@@ -607,7 +696,7 @@ def fetch_issue_comments(
             {
                 "id": comment.get("id"),
                 "reviewer": user_login or "unknown",
-                "body": compact_text(comment.get("body") or "", DEFAULT_MAX_COMMENT_BODY_CHARS),
+                "body": (comment.get("body") or "").strip(),
                 "createdAt": comment.get("created_at", ""),
                 "htmlUrl": comment.get("html_url", ""),
             }
@@ -706,8 +795,48 @@ def fetch_unresolved_threads(pr_value: str, repo_root: Path) -> list[dict[str, A
 
 
 # =============================================================================
-# Thread resolution
+# Thread reply and resolution
 # =============================================================================
+
+def reply_to_thread(thread_id: str, body: str, repo_root: Path) -> bool:
+    """Reply to a review thread using GraphQL mutation."""
+    mutation = """
+    mutation($threadId: ID!, $body: String!) {
+      addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
+        comment {
+          id
+        }
+      }
+    }
+    """
+
+    result = run_gh_command(
+        [
+            "api", "graphql",
+            "-f", f"query={mutation}",
+            "-f", f"threadId={thread_id}",
+            "-f", f"body={body}",
+        ],
+        cwd=repo_root,
+    )
+
+    if result.returncode != 0:
+        error = (result.stderr or result.stdout or "").strip()
+        print(f"  GraphQL reply error: {error}", file=sys.stderr)
+        return False
+
+    try:
+        data = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return False
+
+    comment = (
+        data.get("data", {})
+        .get("addPullRequestReviewThreadReply", {})
+        .get("comment")
+    )
+    return comment is not None
+
 
 def resolve_thread(thread_id: str, repo_root: Path) -> bool:
     """Resolve a review thread using GraphQL mutation."""
@@ -732,6 +861,8 @@ def resolve_thread(thread_id: str, repo_root: Path) -> bool:
     )
 
     if result.returncode != 0:
+        error = (result.stderr or result.stdout or "").strip()
+        print(f"  GraphQL resolve error: {error}", file=sys.stderr)
         return False
 
     try:
@@ -1014,16 +1145,6 @@ def normalize_field(value: Any) -> str:
     return str(value).strip().lower()
 
 
-def compact_text(text: str, max_chars: int) -> str:
-    if not text:
-        return ""
-    cleaned = " ".join(str(text).split())
-    if len(cleaned) <= max_chars:
-        return cleaned
-    trimmed = cleaned[: max(0, max_chars - 3)].rstrip()
-    return f"{trimmed}..."
-
-
 def parse_available_fields(message: str) -> list[str]:
     if "Available fields:" not in message:
         return []
@@ -1174,7 +1295,7 @@ def render_comprehensive_results(results: dict[str, Any]) -> None:
                 for comment in thread.get("comments", []):
                     author = comment.get("author", "unknown")
                     body = comment.get("body", "")
-                    print(f"    @{author}: {body[:100]}{'...' if len(body) > 100 else ''}")
+                    print(f"    @{author}: {body}")
                 print()
         else:
             print("No unresolved review threads.")
@@ -1249,10 +1370,6 @@ def render_comprehensive_results(results: dict[str, Any]) -> None:
             f"\nIssue comments: {review_counts.get('issueComments', 0)}"
         )
 
-    review_note = results.get("reviewNote")
-    if review_note:
-        print(f"\nReview note: {review_note}")
-
     review_action_required = results.get("reviewActionRequired")
     if review_action_required is not None:
         print(f"\nREVIEW ACTION REQUIRED: {'YES' if review_action_required else 'NO'}")
@@ -1278,11 +1395,6 @@ def render_comprehensive_results(results: dict[str, Any]) -> None:
                     print(f"    Details: {details}")
         else:
             print("No failing checks detected.")
-
-    # Resolved threads count
-    resolved_count = results.get("resolvedThreadsCount")
-    if resolved_count is not None:
-        print(f"\nResolved {resolved_count} thread(s).")
 
     # CI Failures
     ci_failures = results.get("ciFailures")
