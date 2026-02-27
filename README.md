@@ -35,6 +35,7 @@ Spec Kit skills (plugin) with:
 GitHub workflow skills with:
 
 - **PR automation**: gh-pr workflow and PR body templates
+- **PR status checks**: gh-pr-check workflow for unmerged PRs and post-merge commits
 - **CI diagnostics**: gh-fix-ci workflow and inspection scripts
 
 ### drawio
@@ -124,6 +125,7 @@ unzip -o ./codex-skills/dist/gh-pr.skill -d "$dest"
 ### Available Codex skills
 
 - gh-pr
+- gh-pr-check
 - gh-fix-ci
 - speckit-require
 - speckit-update
@@ -137,6 +139,11 @@ After installation, restart Codex to load new skills.
 ### gh-pr
 
 Use when creating or updating GitHub PRs with the gh CLI, or when you want a PR body generated from a template.
+
+### gh-pr-check
+
+Use when checking PR status for the current branch, including unmerged PR
+detection and new commits after the latest merged PR.
 
 ### gh-fix-ci
 
@@ -201,6 +208,7 @@ Automatically triggered when:
 Slash commands:
 
 - `/github:gh-pr`
+- `/github:gh-pr-check`
 - `/github:gh-fix-ci`
 
 ### speckit (slash commands)
