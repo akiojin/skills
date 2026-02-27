@@ -12,14 +12,19 @@ Create or update GitHub Pull Requests with the gh CLI using a detailed body temp
 ## Decision rules (must follow)
 
 1. **Do not create or switch branches.** Always use the current branch as the PR head.
-2. **Check for an existing PR for the current head branch.**
+2. **Check local working tree state before push/PR operations.**
+   - `git status --porcelain`
+   - If output is non-empty (tracked or untracked changes), pause and ask the user what to do.
+   - Present 3 options: continue as-is, abort, or manual cleanup then rerun.
+   - **Do not** run `git stash`, `git commit`, or `git clean` automatically unless explicitly requested.
+3. **Check for an existing PR for the current head branch.**
    - `gh pr list --head <head> --state all --json number,state,mergedAt,updatedAt,url,title,mergeCommit`
-3. **If no PR exists** → create a new PR.
-4. **If any PR exists and is NOT merged** (`mergedAt` is null) → push only and finish (do **not** create a new PR).
+4. **If no PR exists** → create a new PR.
+5. **If any PR exists and is NOT merged** (`mergedAt` is null) → push only and finish (do **not** create a new PR).
    - This applies to OPEN or CLOSED (unmerged) PRs.
    - Only update title/body/labels if the user explicitly requests changes.
-5. **If all PRs for the head are merged** → check for post-merge commits (see below).
-6. **If multiple PRs exist for the head** → use the most recently updated PR for reporting, but the create vs push decision is based on `mergedAt`.
+6. **If all PRs for the head are merged** → check for post-merge commits (see below).
+7. **If multiple PRs exist for the head** → use the most recently updated PR for reporting, but the create vs push decision is based on `mergedAt`.
 
 ## Post-merge commit check (critical)
 
@@ -80,28 +85,37 @@ When all PRs for the head branch are merged, you **must** check whether there ar
    - Current branch (head): `git rev-parse --abbrev-ref HEAD`
    - Base branch defaults to `develop` unless user specifies.
 
-2. **Fetch latest remote state**
+2. **Check local working tree state (preflight)**
+   - Run `git status --porcelain`.
+   - If empty, continue.
+   - If non-empty, show detected files and ask the user to choose:
+     - Continue as-is
+     - Abort
+     - Manual cleanup first (`git commit` / `git stash` / `git clean`) and rerun
+   - Proceed only when the user explicitly chooses continue.
+
+3. **Fetch latest remote state**
    - `git fetch origin` to ensure accurate comparison
 
-3. **Check existing PR for head branch**
+4. **Check existing PR for head branch**
    - Use decision rules above to pick action.
    - Treat `mergedAt` as the source of truth for "merged".
 
-4. **If all PRs are merged, perform post-merge commit check**
+5. **If all PRs are merged, perform post-merge commit check**
    - Get merge commit: `gh pr list --head <head> --state merged --json mergeCommit -q '.[0].mergeCommit.oid'`
    - Count new commits: `git rev-list --count <merge_commit>..HEAD`
    - If 0 → finish with message "No new changes since merge"
    - If >0 → proceed to create new PR
 
-5. **Ensure the head branch is pushed**
+6. **Ensure the head branch is pushed**
    - If no upstream: `git push -u origin <head>`
    - Otherwise: `git push`
 
-6. **Collect PR inputs (for new PR or explicit update)**
+7. **Collect PR inputs (for new PR or explicit update)**
    - Title, Summary, Context, Changes, Testing, Risk/Impact, Deployment, Screenshots, Related Links, Notes
    - Optional: labels, reviewers, assignees, draft
 
-7. **Build PR body from template**
+8. **Build PR body from template**
   - Read the template from the gh-pr skill path (not the current project path):
     - `GH_PR_SKILL_DIR="${GH_PR_SKILL_DIR:-$HOME/.codex/skills/gh-pr}"`
     - `PR_BODY_TEMPLATE="${GH_PR_SKILL_DIR}/references/pr-body-template.md"`
@@ -110,11 +124,11 @@ When all PRs for the head branch are merged, you **must** check whether there ar
   - **テンプレート内の `<!-- GUIDE: ... -->` コメントは最終出力から削除する。**
   - **Required セクションに TODO が残っている場合は PR を作成せず、ユーザーに不足情報を確認する。**
 
-8. **Create or update the PR**
+9. **Create or update the PR**
    - Create: `gh pr create -B <base> -H <head> --title "<title>" --body-file <file>`
    - Update (only if user asked): `gh pr edit <number> --title "<title>" --body-file <file>`
 
-9. **Return PR URL**
+10. **Return PR URL**
    - `gh pr view <number> --json url -q .url`
 
 ## Command snippets (bash)
@@ -127,6 +141,16 @@ PR_BODY_TEMPLATE="${GH_PR_SKILL_DIR}/references/pr-body-template.md"
 
 if [ ! -f "$PR_BODY_TEMPLATE" ]; then
   echo "PR template not found: $PR_BODY_TEMPLATE" >&2
+  exit 1
+fi
+
+# Preflight: local working tree state
+status_lines=$(git status --porcelain)
+if [ -n "$status_lines" ] && [ "${ALLOW_DIRTY_WORKTREE:-0}" != "1" ]; then
+  echo "Detected local uncommitted/untracked changes:" >&2
+  echo "$status_lines" >&2
+  echo "Choose one before continuing: continue as-is, abort, or manual cleanup then rerun." >&2
+  echo "Set ALLOW_DIRTY_WORKTREE=1 only after explicit user confirmation to continue." >&2
   exit 1
 fi
 
