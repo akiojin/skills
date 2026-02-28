@@ -142,8 +142,9 @@ Use when creating or updating GitHub PRs with the gh CLI, or when you want a PR 
 
 ### gh-pr-check
 
-Use when checking PR status for the current branch, including unmerged PR
-detection and new commits after the latest merged PR.
+Use when checking PR status for the current branch with a human-readable
+summary, including unmerged PR detection and new commits after the latest
+merged PR.
 
 ### gh-fix-ci
 

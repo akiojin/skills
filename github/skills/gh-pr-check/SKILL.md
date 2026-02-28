@@ -49,16 +49,10 @@ This skill is **check-only**:
 
 ## Output contract
 
-Always return a structured summary that includes:
+Return a human-readable summary by default.
 
-- `status`
-- `recommended_action`
-- `reason`
-- `head`
-- `base`
-- `pr_count`
-- `evidence` (commands and key values)
-- `worktree_dirty` (boolean)
+Do not return raw JSON as the default output.
+If JSON is explicitly requested by the user, append it after the human summary.
 
 Recommended status values:
 
@@ -75,23 +69,76 @@ Recommended action values:
 - `NO_ACTION`
 - `MANUAL_CHECK`
 
-Example response format:
+### Language rule
 
-```json
-{
-  "status": "ALL_MERGED_WITH_NEW_COMMITS",
-  "recommended_action": "CREATE_PR",
-  "reason": "3 commits exist after merge commit abcdef1",
-  "head": "feature/my-branch",
-  "base": "develop",
-  "pr_count": 2,
-  "worktree_dirty": false,
-  "evidence": {
-    "latest_merged_pr": 123,
-    "merge_commit": "abcdef1234567890",
-    "new_commits_after_merge": 3
-  }
-}
+- Follow the user's input language for all headings and messages.
+- If the language is ambiguous, use English.
+
+### Default output template
+
+Use this section order:
+
+1. Result (one line)
+2. Recommended next step (one line)
+3. Why (1-2 lines)
+4. Context
+5. Evidence
+6. Open PRs (only when PRs exist)
+
+Include these fields in the rendered text:
+
+- `status` (mapped to a natural sentence)
+- `recommended_action` (mapped to concrete next action)
+- `reason`
+- `head` / `base`
+- `pr_count`
+- `worktree_dirty`
+- key evidence values:
+  - `unmerged_count`
+  - `latest_merged_pr`
+  - `merge_commit`
+  - `new_commits_after_merge`
+
+### Status-to-message mapping (must use)
+
+- `NO_PR`
+  - Result: "No PR exists for this branch."
+  - Next step: "Create a new PR after pushing the branch if needed."
+- `UNMERGED_PR_EXISTS`
+  - Result: "At least one PR for this branch is still unmerged."
+  - Next step: "Push updates to the existing PR; do not create a new PR."
+- `ALL_MERGED_WITH_NEW_COMMITS`
+  - Result: "All previous PRs are merged, and new commits were found."
+  - Next step: "Create a new PR for the commits made after the last merge."
+- `ALL_MERGED_NO_NEW_COMMITS`
+  - Result: "All previous PRs are merged, and no new commits were found."
+  - Next step: "No PR action is needed."
+- `CHECK_FAILED`
+  - Result: "PR status check could not be completed."
+  - Next step: "Run manual checks for merge commit and branch diff."
+
+### Example human-readable output
+
+```text
+PR Check Result: All previous PRs are merged, and new commits were found.
+Recommended next step: Create a new PR for the commits made after the last merge.
+Why: 3 commits were detected after merge commit abcdef1.
+
+Context
+- head: feature/my-branch
+- base: develop
+- worktree dirty: no
+
+Evidence
+- PR count for head branch: 2
+- unmerged PR count: 0
+- latest merged PR: #123
+- merge commit: abcdef1234567890
+- commits after merge: 3
+
+Open PRs
+- #123 merged https://github.com/org/repo/pull/123
+- #120 merged https://github.com/org/repo/pull/120
 ```
 
 ## Workflow (recommended)
@@ -105,7 +152,8 @@ Example response format:
    - `git status --porcelain`
    - `git fetch origin`
 4. List PRs for head branch and classify using rules above.
-5. Print final status + recommended action + evidence.
+5. Print human-readable result using the default template.
+6. Append JSON only if the user explicitly asks for machine-readable output.
 
 ## Command snippet (bash)
 
@@ -174,7 +222,37 @@ else
   fi
 fi
 
-echo "status=$status action=$action reason=$reason worktree_dirty=$dirty"
+case "$status" in
+  NO_PR)
+    result_msg="No PR exists for this branch."
+    next_msg="Create a new PR after pushing the branch if needed."
+    ;;
+  UNMERGED_PR_EXISTS)
+    result_msg="At least one PR for this branch is still unmerged."
+    next_msg="Push updates to the existing PR; do not create a new PR."
+    ;;
+  ALL_MERGED_WITH_NEW_COMMITS)
+    result_msg="All previous PRs are merged, and new commits were found."
+    next_msg="Create a new PR for the commits made after the last merge."
+    ;;
+  ALL_MERGED_NO_NEW_COMMITS)
+    result_msg="All previous PRs are merged, and no new commits were found."
+    next_msg="No PR action is needed."
+    ;;
+  *)
+    result_msg="PR status check could not be completed."
+    next_msg="Run manual checks for merge commit and branch diff."
+    ;;
+esac
+
+echo "PR Check Result: $result_msg"
+echo "Recommended next step: $next_msg"
+echo "Why: $reason"
+echo "Context:"
+echo "- head: $head"
+echo "- base: $base"
+echo "- worktree dirty: $dirty"
+echo "- PR count for head branch: $pr_count"
 ```
 
 ## Related skill
