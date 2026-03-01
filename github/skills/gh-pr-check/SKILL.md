@@ -36,16 +36,20 @@ This skill is **check-only**:
 6. Post-merge commit check (critical when all PRs are merged):
    - Select latest merged PR by `mergedAt`
    - Get merge commit SHA from `mergeCommit.oid`
-   - Count commits after merge:
+   - Verify merge commit ancestry before counting:
+     - `git merge-base --is-ancestor <merge_commit> HEAD`
+   - If merge commit is ancestor of `HEAD`, count commits after merge:
      - `git rev-list --count <merge_commit>..HEAD`
    - If count > 0 -> `ALL_MERGED_WITH_NEW_COMMITS` + `CREATE_PR`
    - If count == 0 -> `ALL_MERGED_NO_NEW_COMMITS` + `NO_ACTION`
-7. Fallback when merge commit SHA is missing:
-   - Compare against base:
-     - `git rev-list --count origin/<base>..HEAD`
+7. Fallback when merge commit SHA is missing or not an ancestor of `HEAD`:
+   - First compare against branch upstream (preferred):
+     - `git rev-list --count origin/<head>..HEAD`
    - Count > 0 -> `ALL_MERGED_WITH_NEW_COMMITS` + `CREATE_PR` (fallback)
    - Count == 0 -> `ALL_MERGED_NO_NEW_COMMITS` + `NO_ACTION` (fallback)
-   - If comparison fails -> `CHECK_FAILED` + `MANUAL_CHECK`
+   - If upstream comparison fails, compare against base:
+     - `git rev-list --count origin/<base>..HEAD`
+   - If base comparison fails -> `CHECK_FAILED` + `MANUAL_CHECK`
 
 ## Output contract
 
@@ -97,6 +101,7 @@ Include these fields in the rendered text:
   - `unmerged_count`
   - `latest_merged_pr`
   - `merge_commit`
+  - `merge_commit_is_ancestor`
   - `new_commits_after_merge`
 
 ### Status-to-message mapping (must use)
@@ -152,8 +157,10 @@ Open PRs
    - `git status --porcelain`
    - `git fetch origin`
 4. List PRs for head branch and classify using rules above.
-5. Print human-readable result using the default template.
-6. Append JSON only if the user explicitly asks for machine-readable output.
+5. When all PRs are merged, validate merge commit ancestry before counting commits.
+6. If merge commit is not usable, fallback to `origin/<head>..HEAD` first.
+7. Print human-readable result using the default template.
+8. Append JSON only if the user explicitly asks for machine-readable output.
 
 ## Command snippet (bash)
 
@@ -182,10 +189,11 @@ elif [ "$unmerged_count" -gt 0 ]; then
   reason="At least one PR for the head branch is not merged"
 else
   merge_commit="$(echo "$pr_json" | jq -r 'sort_by(.mergedAt) | last | .mergeCommit.oid')"
-  if [ -n "$merge_commit" ] && [ "$merge_commit" != "null" ]; then
-    new_commits="$(
-      git rev-list --count "$merge_commit"..HEAD 2>/dev/null || echo ""
-    )"
+  merge_commit_ancestor=0
+  if [ -n "$merge_commit" ] && [ "$merge_commit" != "null" ] && \
+     git merge-base --is-ancestor "$merge_commit" HEAD 2>/dev/null; then
+    merge_commit_ancestor=1
+    new_commits="$(git rev-list --count "$merge_commit"..HEAD 2>/dev/null || echo "")"
   else
     new_commits=""
   fi
@@ -201,6 +209,20 @@ else
       reason="No commits found after last merge"
     fi
   else
+    upstream_commits="$(
+      git rev-list --count "origin/$head"..HEAD 2>/dev/null || echo ""
+    )"
+    if [ -n "$upstream_commits" ]; then
+      if [ "$upstream_commits" -gt 0 ]; then
+        status="ALL_MERGED_WITH_NEW_COMMITS"
+        action="CREATE_PR"
+        reason="Fallback check found commits ahead of origin/$head"
+      else
+        status="ALL_MERGED_NO_NEW_COMMITS"
+        action="NO_ACTION"
+        reason="Fallback check found no commits ahead of origin/$head"
+      fi
+    else
     fallback_commits="$(
       git rev-list --count "origin/$base"..HEAD 2>/dev/null || echo ""
     )"
@@ -218,6 +240,7 @@ else
       status="CHECK_FAILED"
       action="MANUAL_CHECK"
       reason="Could not resolve merge commit and fallback comparison failed"
+    fi
     fi
   fi
 fi
