@@ -80,70 +80,101 @@ Recommended action values:
 
 ### Default output template
 
-Use this section order:
+Output 1-3 lines using a signal prefix + action keyword on line 1.
 
-1. Result (one line)
-2. Recommended next step (one line)
-3. Why (1-2 lines)
-4. Context
-5. Evidence
-6. Open PRs (only when PRs exist)
+| Prefix | Action | Meaning |
+| --- | --- | --- |
+| `>>` | `CREATE PR` | Create a new PR |
+| `>` | `PUSH ONLY` | Push to existing PR |
+| `--` | `NO ACTION` | Nothing to do |
+| `!!` | `MANUAL CHECK` | Manual check required |
 
-Include these fields in the rendered text:
+Per-status format:
 
-- `status` (mapped to a natural sentence)
-- `recommended_action` (mapped to concrete next action)
-- `reason`
-- `head` / `base`
-- `pr_count`
-- `worktree_dirty`
-- key evidence values:
-  - `unmerged_count`
-  - `latest_merged_pr`
-  - `merge_commit`
-  - `merge_commit_is_ancestor`
-  - `new_commits_after_merge`
+- **NO_PR**:
+  `>> CREATE PR — No PR exists for <head> -> <base>.`
+- **UNMERGED_PR_EXISTS** (2 lines):
 
-### Status-to-message mapping (must use)
+  ```text
+  > PUSH ONLY — Unmerged PR open for `<head>`.
+     PR: #<number> <url>
+  ```
 
-- `NO_PR`
-  - Result: "No PR exists for this branch."
-  - Next step: "Create a new PR after pushing the branch if needed."
-- `UNMERGED_PR_EXISTS`
-  - Result: "At least one PR for this branch is still unmerged."
-  - Next step: "Push updates to the existing PR; do not create a new PR."
-- `ALL_MERGED_WITH_NEW_COMMITS`
-  - Result: "All previous PRs are merged, and new commits were found."
-  - Next step: "Create a new PR for the commits made after the last merge."
-- `ALL_MERGED_NO_NEW_COMMITS`
-  - Result: "All previous PRs are merged, and no new commits were found."
-  - Next step: "No PR action is needed."
-- `CHECK_FAILED`
-  - Result: "PR status check could not be completed."
-  - Next step: "Run manual checks for merge commit and branch diff."
+- **ALL_MERGED_WITH_NEW_COMMITS** (2 lines):
 
-### Example human-readable output
+  ```text
+  >> CREATE PR — <N> new commit(s) after last merge (#<pr_number>).
+     head: <head> -> base: <base>
+  ```
+
+- **ALL_MERGED_NO_NEW_COMMITS**:
+  `-- NO ACTION — All PRs merged, no new commits on <head>.`
+- **CHECK_FAILED** (2 lines):
+
+  ```text
+  !! MANUAL CHECK — Could not determine PR status.
+     Reason: <reason>
+     head: <head> -> base: <base>
+  ```
+
+Append the following line **only** when the worktree is dirty:
 
 ```text
-PR Check Result: All previous PRs are merged, and new commits were found.
-Recommended next step: Create a new PR for the commits made after the last merge.
-Why: 3 commits were detected after merge commit abcdef1.
+   (!) Worktree has uncommitted changes.
+```
 
-Context
-- head: feature/my-branch
-- base: develop
-- worktree dirty: no
+### Status-to-action mapping (must use)
 
-Evidence
-- PR count for head branch: 2
-- unmerged PR count: 0
-- latest merged PR: #123
-- merge commit: abcdef1234567890
-- commits after merge: 3
+| Status | Prefix | Action | Template |
+| --- | --- | --- | --- |
+| `NO_PR` | `>>` | `CREATE PR` | No PR exists |
+| `UNMERGED_PR_EXISTS` | `>` | `PUSH ONLY` | Unmerged PR open |
+| `ALL_MERGED_WITH_NEW_COMMITS` | `>>` | `CREATE PR` | N new commit(s) |
+| `ALL_MERGED_NO_NEW_COMMITS` | `--` | `NO ACTION` | All PRs merged |
+| `CHECK_FAILED` | `!!` | `MANUAL CHECK` | Could not determine |
 
-Open PRs
-- #123 merged https://github.com/org/repo/pull/123
-- #120 merged https://github.com/org/repo/pull/120
+### Example outputs
+
+**NO_PR:**
+
+```text
+>> CREATE PR — No PR exists for `feature/my-branch` -> `develop`.
+```
+
+**UNMERGED_PR_EXISTS:**
+
+```text
+> PUSH ONLY — Unmerged PR open for `feature/my-branch`.
+   PR: #456 https://github.com/org/repo/pull/456
+```
+
+**ALL_MERGED_WITH_NEW_COMMITS:**
+
+```text
+>> CREATE PR — 3 new commit(s) after last merge (#123).
+   head: feature/my-branch -> base: develop
+```
+
+**ALL_MERGED_NO_NEW_COMMITS:**
+
+```text
+-- NO ACTION — All PRs merged, no new commits on `feature/my-branch`.
+```
+
+**CHECK_FAILED:**
+
+```text
+!! MANUAL CHECK — Could not determine PR status.
+   Reason: Could not resolve merge commit and fallback comparison failed
+   head: feature/my-branch -> base: develop
+```
+
+**With dirty worktree (appended to any status):**
+
+```text
+>> CREATE PR — 3 new commit(s) after last merge (#123).
+   head: feature/my-branch -> base: develop
+   (!) Worktree has uncommitted changes.
 ```
 
 ## Workflow (recommended)
@@ -193,7 +224,9 @@ else
   if [ -n "$merge_commit" ] && [ "$merge_commit" != "null" ] && \
      git merge-base --is-ancestor "$merge_commit" HEAD 2>/dev/null; then
     merge_commit_ancestor=1
-    new_commits="$(git rev-list --count "$merge_commit"..HEAD 2>/dev/null || echo "")"
+    new_commits="$(
+      git rev-list --count "$merge_commit"..HEAD 2>/dev/null || echo ""
+    )"
   else
     new_commits=""
   fi
@@ -245,37 +278,45 @@ else
   fi
 fi
 
+latest_merged_pr="$(
+  echo "$pr_json" \
+    | jq -r 'sort_by(.mergedAt) | last | .number // empty'
+)"
+unmerged_pr="$(
+  echo "$pr_json" \
+    | jq -r 'map(select(.mergedAt == null)) | first | .number // empty'
+)"
+unmerged_pr_url="$(
+  echo "$pr_json" \
+    | jq -r 'map(select(.mergedAt == null)) | first | .url // empty'
+)"
+
 case "$status" in
   NO_PR)
-    result_msg="No PR exists for this branch."
-    next_msg="Create a new PR after pushing the branch if needed."
+    echo ">> CREATE PR — No PR exists for \`$head\` -> \`$base\`."
     ;;
   UNMERGED_PR_EXISTS)
-    result_msg="At least one PR for this branch is still unmerged."
-    next_msg="Push updates to the existing PR; do not create a new PR."
+    echo "> PUSH ONLY — Unmerged PR open for \`$head\`."
+    echo "   PR: #$unmerged_pr $unmerged_pr_url"
     ;;
   ALL_MERGED_WITH_NEW_COMMITS)
-    result_msg="All previous PRs are merged, and new commits were found."
-    next_msg="Create a new PR for the commits made after the last merge."
+    n="${new_commits:-$upstream_commits}"
+    echo ">> CREATE PR — $n new commit(s) after last merge (#$latest_merged_pr)."
+    echo "   head: $head -> base: $base"
     ;;
   ALL_MERGED_NO_NEW_COMMITS)
-    result_msg="All previous PRs are merged, and no new commits were found."
-    next_msg="No PR action is needed."
+    echo "-- NO ACTION — All PRs merged, no new commits on \`$head\`."
     ;;
   *)
-    result_msg="PR status check could not be completed."
-    next_msg="Run manual checks for merge commit and branch diff."
+    echo "!! MANUAL CHECK — Could not determine PR status."
+    echo "   Reason: $reason"
+    echo "   head: $head -> base: $base"
     ;;
 esac
 
-echo "PR Check Result: $result_msg"
-echo "Recommended next step: $next_msg"
-echo "Why: $reason"
-echo "Context:"
-echo "- head: $head"
-echo "- base: $base"
-echo "- worktree dirty: $dirty"
-echo "- PR count for head branch: $pr_count"
+if [ "$dirty" -eq 1 ]; then
+  echo "   (!) Worktree has uncommitted changes."
+fi
 ```
 
 ## Related skill
