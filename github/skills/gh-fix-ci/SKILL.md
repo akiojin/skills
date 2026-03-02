@@ -33,6 +33,27 @@ Prereq: ensure `gh` is authenticated (for example, run `gh auth login` once), th
 - If the feedback was intentionally not addressed: reply with the reason (e.g., "Not addressed: this is intentional because the API contract requires this format.").
 - The `--reply-and-resolve` argument enforces this by requiring a reply entry for every unresolved thread and rejecting empty bodies.
 
+## Diagnosis Report Anti-Patterns
+
+### Prohibited Language
+
+| Prohibited | Required Alternative |
+|---|---|
+| "We should look into..." | "Edit `path/file.ts:42` to..." |
+| "There seem to be some issues" | "3 blocking items detected" |
+| "This might be causing..." | "Root cause: `<error from log>`" |
+| "Consider fixing..." / "It looks like..." | "Action: Fix `<what>` in `<where>`" |
+| "Various CI checks are failing" | "2 CI checks failing: `build`, `lint`" |
+| "Some reviewers have concerns" | "@reviewer1 requested: `<quote>`" |
+| "I'll try to fix this" | "Action: \<specific fix\>" |
+
+### Structural Prohibitions
+
+- Prose paragraphs for reporting — use B1/I1 item format exclusively.
+- Omitting the Evidence field in any BLOCKING item.
+- Combining multiple independent problems into a single item.
+- Omitting file paths or line numbers when the script output contains them.
+
 ## Issue/PR Comment Formatting (must follow)
 
 - Final comment text must not contain escaped newline literals such as `\n`.
@@ -131,16 +152,66 @@ python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks
    **All Mode (`--mode all`):**
    - Run all inspections above.
 
-4. **Summarize issues for the user.**
-   - Provide clear summary of all detected issues.
-   - Call out conflicts, change requests, unresolved threads, and CI failures.
+4. **Produce Diagnosis Report (mandatory format).**
 
-5. **Create a plan.**
-   - Use the `plan` skill to draft a fix plan and request approval.
+   Output MUST use this exact structure:
 
-6. **Implement after approval.**
-   - Apply the approved plan, summarize diffs/tests.
+   ```text
+   ## Diagnosis Report: PR #<number>
+
+   **Merge Verdict: BLOCKED | CLEAR**
+   Blocking items: <N>
+
+   ---
+
+   ### BLOCKING
+
+   #### B1. [CATEGORY] <1-line title>
+   - **What:** Factual statement (no speculation)
+   - **Where:** file_path:line_number / check name / branch ref
+   - **Evidence:** Verbatim quote from script output
+   - **Action:** Specific fix (file path, command, or code change — at least one required)
+   - **Auto-fix:** Yes | No (needs confirmation)
+
+   #### B2. [CATEGORY] <1-line title>
+   ...
+
+   ---
+
+   ### INFORMATIONAL
+   #### I1. [CATEGORY] <1-line title>
+   - **What / Note**
+
+   ---
+
+   **Summary:** <N> blocking items to fix, <M> informational items noted.
+   ```
+
+   **Classification rules:**
+
+   - **BLOCKING:** CONFLICTING/DIRTY merge state, BEHIND, CI failure/cancelled/timed\_out/action\_required, CHANGES\_REQUESTED, unresolved review threads
+   - **INFORMATIONAL:** Comments without change requests, pending CI, outdated review threads
+
+   **Category labels:** `CONFLICT`, `BRANCH-BEHIND`, `CI-FAILURE`, `CHANGE-REQUEST`, `UNRESOLVED-THREAD`, `REVIEW-COMMENT`
+
+   **Auto-fix judgment:**
+
+   - **Auto-fix: Yes** — CI-FAILURE code fixes, reviewer instructions that the LLM can address with high confidence
+   - **Auto-fix: No (needs confirmation)** — CONFLICT resolution (merge/rebase), low-confidence reviewer instructions, changes requiring design decisions
+
+   **Each CHANGE-REQUEST and each UNRESOLVED-THREAD is a separate B-item.** Do not combine multiple threads or requests into one item.
+
+5. **Decide execution path.**
+   - If ALL blocking items have `Auto-fix: Yes` → display Diagnosis Report, skip plan, proceed directly to step 6.
+   - If ANY blocking item has `Auto-fix: No` → create a plan referencing B-item IDs (e.g., "Fix B1: ...", "Fix B3: ...") and request user approval for `Auto-fix: No` items before proceeding.
+
+6. **Implement fixes.**
+   - Apply the approved fixes, summarize diffs/tests.
+   - After applying fixes, commit changes and push to the PR branch.
+   - Verify push succeeded before proceeding to step 7.
    - **After implementing fixes, proceed to step 7 to reply and resolve ALL threads.**
+   - For BRANCH-BEHIND items, see [Fix Strategies: BRANCH-BEHIND](#branch-behind).
+   - For CONFLICT items, see [Fix Strategies: CONFLICT](#conflict).
 
 7. **Reply to ALL reviewer comments and resolve threads (mandatory).**
    - **CRITICAL:** Every unresolved review thread MUST receive a reply before resolution. No thread may be silently resolved or left unaddressed.
@@ -150,13 +221,43 @@ python3 "${CLAUDE_PLUGIN_ROOT}/github/skills/gh-fix-ci/scripts/inspect_pr_checks
    - Use `--reply-and-resolve` with a JSON array covering ALL unresolved threads.
    - The script validates completeness and rejects the operation if any thread is missing a reply.
    - Requires `Repository Permissions > Contents: Read and Write`.
+   - Resolve threads at this point (after code fix is pushed). Do not wait for CI completion to resolve threads.
 
-8. **Notify reviewers (optional).**
+8. **Notify reviewers (mandatory).**
    - With `--add-comment "message"`, post a comment to the PR.
-   - Useful for notifying reviewers that issues have been addressed.
+   - Include a summary of what was fixed (list each B-item and the action taken).
+   - This step is not optional — always notify reviewers after fixes are applied.
 
-9. **Recheck status.**
-   - After changes, suggest re-running `gh pr checks` to confirm.
+9. **Verify fix (mandatory — do not skip).**
+   - Re-run the inspection script with `--mode all` (regardless of initial mode).
+   - Exit code 0 → all resolved → report success to user.
+   - Exit code 1 → issues remain → go back to step 4 with new output.
+   - No iteration limit. Continue until all issues are resolved.
+   - CI still pending/queued → poll at 30-second intervals (no timeout) until ALL checks complete.
+   - Wait for ALL CI checks to complete before starting fixes (pushing resets pending checks).
+   - After fix push, re-enter polling to wait for new CI run to complete.
+
+## Loop Safety Guard
+
+- If the **same CI check name** (e.g., `build`) fails **3 consecutive iterations**:
+  1. Report to user: which check, what was tried in each iteration, what keeps failing.
+  2. Ask user to choose: **continue** / **abort** / **change approach**.
+  3. Only proceed after explicit user decision.
+- This prevents oscillation loops where fix A breaks B and fix B breaks A.
+- Different checks failing in different iterations do NOT trigger the guard (e.g., `build` fails → fixed → `lint` fails is normal progression, not oscillation).
+
+## Fix Strategies
+
+### BRANCH-BEHIND
+
+- Default strategy: `git fetch origin <base> && git merge origin/<base>`
+- If merge results in conflicts, switch to CONFLICT handling below.
+
+### CONFLICT
+
+- LLM attempts to resolve conflicts after user confirmation.
+- Present conflict summary (affected files, conflict markers) and proposed resolution to the user.
+- Execute resolution only after user approves.
 
 ## Bundled Resources
 
@@ -253,6 +354,50 @@ Use `--reply-and-resolve` to reply to every unresolved thread and resolve them.
 Use `--add-comment "message"` to post a summary comment to the PR after fixes.
 
 ## Output Examples
+
+### Diagnosis Report
+
+```text
+## Diagnosis Report: PR #123
+
+**Merge Verdict: BLOCKED**
+Blocking items: 3
+
+---
+
+### BLOCKING
+
+#### B1. [CI-FAILURE] TypeScript build fails
+- **What:** `build` check failed with compilation error
+- **Where:** `src/utils/parser.ts:42` / check: `build`
+- **Evidence:** `error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.`
+- **Action:** Edit `src/utils/parser.ts:42` — change `parseInt(value)` to pass the correct type
+- **Auto-fix:** Yes
+
+#### B2. [CHANGE-REQUEST] @reviewer1 requests error handling
+- **What:** Reviewer requested try-catch around API call
+- **Where:** `src/api/client.ts:88`
+- **Evidence:** "@reviewer1: Please wrap this fetch call in a try-catch block to handle network errors gracefully."
+- **Action:** Add try-catch in `src/api/client.ts:88` around the `fetch()` call
+- **Auto-fix:** Yes
+
+#### B3. [CONFLICT] Merge conflict with main
+- **What:** 2 files have merge conflicts
+- **Where:** `src/config.ts`, `src/index.ts` / branch: `main`
+- **Evidence:** `Mergeable: CONFLICTING, Merge State: DIRTY`
+- **Action:** Merge `origin/main` and resolve conflicts in listed files
+- **Auto-fix:** No (needs confirmation)
+
+---
+
+### INFORMATIONAL
+#### I1. [REVIEW-COMMENT] Code style suggestion
+- **What / Note:** @reviewer2 suggested extracting a helper function — non-blocking style preference
+
+---
+
+**Summary:** 3 blocking items to fix, 1 informational item noted.
+```
 
 ### Text Output
 
