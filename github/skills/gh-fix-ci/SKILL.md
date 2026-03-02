@@ -33,6 +33,31 @@ Prereq: ensure `gh` is authenticated (for example, run `gh auth login` once), th
 - If the feedback was intentionally not addressed: reply with the reason (e.g., "Not addressed: this is intentional because the API contract requires this format.").
 - The `--reply-and-resolve` argument enforces this by requiring a reply entry for every unresolved thread and rejecting empty bodies.
 
+## Issue/PR Comment Formatting (must follow)
+
+- Final comment text must not contain escaped newline literals such as `\n`.
+- Use real line breaks in comment bodies. Do not rely on escaped sequences for formatting.
+- Before posting (`--add-comment` or manual `gh issue/pr comment`), verify the final body does not accidentally include escaped control sequences (`\n`, `\t`).
+- If a raw escape sequence must be shown for explanation, include it only inside a fenced code block and clarify it is intentional.
+
+## Issue Progress Comment Template (required for issue-based work)
+
+When work is tracked in GitHub Issues, progress updates must use this template:
+
+```markdown
+Progress
+- ...
+
+Done
+- ...
+
+Next
+- ...
+```
+
+- Post updates at least when starting work, after meaningful progress, and when blocked/unblocked.
+- In `Next`, explicitly state blockers or the immediate next action.
+
 ## Inputs
 
 - `repo`: path inside the repo (default `.`)
