@@ -26,7 +26,7 @@
     {
       "name": "github",
       "source": "./github",
-      "description": "GitHub workflow skills: PR creation/update (gh-pr), PR status checks (gh-pr-check), CI failure inspection/fix (gh-fix-ci), and Issue analysis/fix planning (gh-fix-issue)",
+      "description": "GitHub workflow skills: PR creation/update (gh-pr), PR status checks (gh-pr-check), PR blocker inspection/fix (gh-fix-pr; gh-fix-ci is legacy alias), and Issue analysis/fix planning (gh-fix-issue)",
       "version": "0.2.0",
       "category": "development",
       "keywords": ["github", "pr", "pull-request", "status-check", "ci", "review", "actions", "issue", "bug-fix", "analysis"]

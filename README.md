@@ -36,7 +36,7 @@ GitHub workflow skills with:
 
 - **PR automation**: gh-pr workflow and PR body templates
 - **PR status checks**: gh-pr-check workflow for unmerged PRs and post-merge commits
-- **CI diagnostics**: gh-fix-ci workflow and inspection scripts
+- **PR blocker diagnostics**: gh-fix-pr workflow and inspection scripts (compat: gh-fix-ci)
 - **Issue analysis**: gh-fix-issue workflow for analyzing Issues, extracting error context, and proposing fix plans
 
 ### drawio
@@ -127,7 +127,8 @@ unzip -o ./codex-skills/dist/gh-pr.skill -d "$dest"
 
 - gh-pr
 - gh-pr-check
-- gh-fix-ci
+- gh-fix-pr
+- gh-fix-ci (legacy alias)
 - gh-fix-issue
 - speckit-require
 - speckit-update
@@ -148,9 +149,13 @@ Use when checking PR status for the current branch with a human-readable
 summary, including unmerged PR detection and new commits after the latest
 merged PR.
 
-### gh-fix-ci
+### gh-fix-pr
 
-Use when debugging failing GitHub Actions checks for a PR and you want a fix plan + code changes.
+Use when diagnosing/fixing PR blockers (CI failures, conflicts, review blockers) for PRs and applying follow-up fixes.
+
+### gh-fix-ci (legacy alias)
+
+Kept for backward compatibility; delegates to `gh-fix-pr`.
 
 ### gh-fix-issue
 
@@ -216,7 +221,8 @@ Slash commands:
 
 - `/github:gh-pr`
 - `/github:gh-pr-check`
-- `/github:gh-fix-ci`
+- `/github:gh-fix-pr`
+- `/github:gh-fix-ci` (legacy alias)
 - `/github:gh-fix-issue`
 
 ### speckit (slash commands)

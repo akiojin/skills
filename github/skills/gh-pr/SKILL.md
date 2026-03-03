@@ -157,11 +157,11 @@ Next
    - `gh pr view <number> --json url -q .url`
 
 11. **Post-PR CI/merge check (automatic).**
-   - After PR creation or push, load `github/skills/gh-fix-ci/SKILL.md` and
+   - After PR creation or push, load `github/skills/gh-fix-pr/SKILL.md` and
      follow its workflow to inspect CI status, merge state, and review feedback.
    - If all CI checks are still pending, poll (30s interval) until complete.
    - If conflicts, review issues, or CI failures are detected, proceed with
-     the gh-fix-ci workflow to diagnose and fix.
+     the gh-fix-pr workflow to diagnose and fix.
 
 ## Command snippets (bash)
 
